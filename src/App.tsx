@@ -292,9 +292,9 @@ export default function App() {
               >
                 <button
                   onClick={() => setSelectedPrayer(null)}
-                  className="absolute -top-4 -right-4 bg-white text-slate-900 p-2 rounded-full shadow-lg hover:bg-slate-100 transition-colors"
+                  className="absolute -top-2 -right-2 bg-white text-slate-900 p-1 rounded-full shadow-lg hover:bg-slate-100 transition-colors"
                 >
-                  <X className="w-6 h-6" />
+                  <X className="w-3 h-3" />
                 </button>
 
                 <div className="flex flex-col items-center text-center">
@@ -312,13 +312,21 @@ export default function App() {
                     </p>
                   </div>
 
-                  <button 
+                  <motion.button 
                     onClick={closePrayer}
-                    className="bg-white text-indigo-900 px-8 py-3 rounded-full font-bold shadow-lg hover:bg-slate-100 transition-colors flex items-center gap-2"
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    animate={{ 
+                      boxShadow: ["0px 0px 0px rgba(255,255,255,0)", "0px 0px 20px rgba(255,255,255,0.5)", "0px 0px 0px rgba(255,255,255,0)"]
+                    }}
+                    transition={{
+                      boxShadow: { duration: 2, repeat: Infinity }
+                    }}
+                    className="bg-white text-indigo-900 px-10 py-4 rounded-full font-black text-lg shadow-xl flex items-center gap-2"
                   >
-                    <CheckCircle2 className="w-5 h-5" />
+                    <CheckCircle2 className="w-6 h-6" />
                     Amém!
-                  </button>
+                  </motion.button>
                 </div>
               </motion.div>
             </motion.div>
