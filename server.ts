@@ -11,52 +11,57 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Vite middleware for development
-  let vite: any;
-  if (process.env.NODE_ENV !== "production") {
-    vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "custom", // Changed to custom to handle index.html manually
-    });
-    app.use(vite.middlewares);
-  }
-
-  // API routes
-  app.get("/api/health", (req, res) => {
-    res.json({ status: "ok", message: "Potinho de Orações API is running" });
-  });
-
-  // Prevent 404 for favicon.ico
+  // 1. Handle favicon early to prevent 404 logs
   app.get("/favicon.ico", (req, res) => {
     res.status(204).end();
   });
 
-  // Serve the application
-  app.use("*", async (req, res, next) => {
-    const url = req.originalUrl;
-
-    try {
-      if (process.env.NODE_ENV === "production") {
-        res.sendFile(path.resolve(__dirname, "dist", "index.html"));
-      } else {
-        // In development, read index.html and transform it through Vite
-        let template = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
-        template = await vite.transformIndexHtml(url, template);
-        res.status(200).set({ "Content-Type": "text/html" }).end(template);
-      }
-    } catch (e) {
-      if (process.env.NODE_ENV !== "production" && vite) {
-        vite.ssrFixStacktrace(e as Error);
-      }
-      next(e);
-    }
+  // 2. API routes
+  app.get("/api/health", (req, res) => {
+    res.json({ status: "ok", message: "Potinho de Orações API is running" });
   });
 
+  if (process.env.NODE_ENV === "production") {
+    // PRODUCTION MODE
+    const distPath = path.resolve(__dirname, "dist");
+    
+    if (fs.existsSync(distPath)) {
+      // Serve static assets from dist
+      app.use(express.static(distPath, { index: false }));
+
+      // SPA fallback: serve index.html for any non-file request
+      app.get("*", (req, res) => {
+        res.sendFile(path.resolve(distPath, "index.html"));
+      });
+    } else {
+      console.warn("Production mode enabled but 'dist' folder not found. Please run 'npm run build' first.");
+      app.get("*", (req, res) => {
+        res.status(500).send("Application not built. Please run 'npm run build'.");
+      });
+    }
+  } else {
+    // DEVELOPMENT MODE
+    // Use Vite's built-in SPA middleware which handles:
+    // - Serving index.html with transformations
+    // - Serving assets (/src/...)
+    // - HMR (if enabled)
+    const vite = await createViteServer({
+      server: { 
+        middlewareMode: true,
+        host: '0.0.0.0',
+        port: 3000
+      },
+      appType: "spa",
+    });
+
+    app.use(vite.middlewares);
+  }
+
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
+    console.log(`Server running on http://0.0.0.0:${PORT} [${process.env.NODE_ENV || 'development'}]`);
   });
 }
 
 startServer().catch((err) => {
-  console.error("Failed to start server:", err);
+  console.error("Critical failure starting server:", err);
 });
