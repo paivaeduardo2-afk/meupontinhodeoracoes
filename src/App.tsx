@@ -43,12 +43,22 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Erro na autenticação');
+      
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseError) {
+        throw new Error('Erro ao processar resposta do servidor. Tente novamente.');
+      }
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro na autenticação');
+      }
       
       onAuthSuccess(data.token, data.user);
     } catch (err: any) {
-      setError(err.message);
+      console.error('Erro na autenticação:', err);
+      setError(err.message || 'Ocorreu um erro inesperado. Verifique sua conexão.');
     } finally {
       setLoading(false);
     }

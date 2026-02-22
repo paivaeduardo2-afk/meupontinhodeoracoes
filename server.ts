@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 import fs from "fs";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import db from "./db.js";
+import db from "./db";
 import dotenv from "dotenv";
 
 dotenv.config();
@@ -28,6 +28,7 @@ async function startServer() {
 
   app.post("/api/auth/register", async (req, res) => {
     const { email, password } = req.body;
+    console.log(`Tentativa de registro: ${email}`);
     if (!email || !password) {
       return res.status(400).json({ error: "Email e senha são obrigatórios!" });
     }
@@ -36,27 +37,34 @@ async function startServer() {
       const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
       const result = stmt.run(email, hashedPassword);
       const token = jwt.sign({ userId: Number(result.lastInsertRowid) }, JWT_SECRET);
+      console.log(`Registro bem-sucedido: ${email}`);
       res.json({ token, user: { email, points: 0, used_prayers: [] } });
     } catch (error: any) {
+      console.error("Erro no registro:", error);
       if (error.code === "SQLITE_CONSTRAINT") {
-        res.status(400).json({ error: "Este email já tem uma conta! Tente entrar." });
+        res.status(400).json({ error: "Este email já tem uma conta! Tente entrar. 🏠" });
       } else {
-        res.status(500).json({ error: "Ops! Erro ao criar conta. Tente de novo." });
+        res.status(500).json({ error: "Ops! Erro ao criar conta no servidor. Tente de novo. 🛠️" });
       }
     }
   });
 
   app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
+    console.log(`Tentativa de login: ${email}`);
     try {
       const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
       if (!user) {
-        return res.status(404).json({ error: "Conta não encontrada. Clique em 'Cadastre-se' abaixo!" });
+        console.log(`Usuário não encontrado: ${email}`);
+        return res.status(404).json({ error: "Conta não encontrada. Você precisa se cadastrar primeiro! ✨" });
       }
-      if (!(await bcrypt.compare(password, user.password))) {
-        return res.status(401).json({ error: "Senha incorreta. Tente de novo!" });
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      if (!isPasswordValid) {
+        console.log(`Senha incorreta para: ${email}`);
+        return res.status(401).json({ error: "Senha incorreta. Tente de novo! 🔑" });
       }
       const token = jwt.sign({ userId: user.id }, JWT_SECRET);
+      console.log(`Login bem-sucedido: ${email}`);
       res.json({ 
         token, 
         user: { 
@@ -66,7 +74,8 @@ async function startServer() {
         } 
       });
     } catch (error) {
-      res.status(500).json({ error: "Erro ao fazer login" });
+      console.error("Erro no login:", error);
+      res.status(500).json({ error: "Erro interno no servidor. Tente novamente." });
     }
   });
 
