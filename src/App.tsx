@@ -5,11 +5,131 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Sparkles, Heart, Moon, Sun, Star, RefreshCcw, X, Trophy, CheckCircle2 } from 'lucide-react';
+import { Sparkles, Heart, Moon, Sun, Star, RefreshCcw, X, Trophy, CheckCircle2, LogIn, UserPlus, LogOut } from 'lucide-react';
 import { PRAYERS_LIST, PrayerData } from './data/prayers';
 
 const MAX_POINTS = 10;
 const STORAGE_KEY = 'potinho_used_prayers';
+const AUTH_TOKEN_KEY = 'potinho_auth_token';
+
+// --- AUTH COMPONENTS ---
+
+interface AuthProps {
+  onAuthSuccess: (token: string, userData: any) => void;
+}
+
+const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || 'Erro na autenticação');
+      
+      onAuthSuccess(data.token, data.user);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[#0f172a]">
+      <motion.div 
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        className="bg-white p-8 rounded-3xl shadow-2xl w-full max-w-md"
+      >
+        <div className="text-center mb-8">
+          <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Heart className="text-indigo-600 w-8 h-8" />
+          </div>
+          <h2 className="text-3xl font-bold text-indigo-900">
+            {isLogin ? 'Bem-vindo de volta!' : 'Criar sua conta'}
+          </h2>
+          <p className="text-slate-500 mt-2">
+            {isLogin ? 'Entre para continuar suas orações' : 'Comece sua jornada de oração hoje'}
+          </p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1 uppercase tracking-wider">Email</label>
+            <input 
+              type="email" 
+              required 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-colors"
+              placeholder="seu@email.com"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-bold text-slate-700 mb-1 uppercase tracking-wider">Senha</label>
+            <input 
+              type="password" 
+              required 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-3 rounded-xl border-2 border-slate-100 focus:border-indigo-500 outline-none transition-colors"
+              placeholder="••••••••"
+            />
+          </div>
+
+          {error && (
+            <motion.p 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="text-red-500 text-sm font-medium text-center"
+            >
+              {error}
+            </motion.p>
+          )}
+
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full bg-indigo-600 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {loading ? (
+              <RefreshCcw className="w-5 h-5 animate-spin" />
+            ) : isLogin ? (
+              <><LogIn className="w-5 h-5" /> Entrar</>
+            ) : (
+              <><UserPlus className="w-5 h-5" /> Cadastrar</>
+            )}
+          </button>
+        </form>
+
+        <div className="mt-6 text-center">
+          <button 
+            onClick={() => setIsLogin(!isLogin)}
+            className="text-indigo-600 font-bold hover:underline"
+          >
+            {isLogin ? 'Não tem uma conta? Cadastre-se' : 'Já tem uma conta? Entre aqui'}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
+// --- MAIN APP ---
 
 const CONGRATS_MESSAGES = [
   "Parabéns! Você é uma criança muito especial e o Papai do Céu está muito feliz com sua dedicação!",
@@ -37,12 +157,74 @@ const ICONS = [
 ];
 
 export default function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem(AUTH_TOKEN_KEY));
   const [selectedPrayer, setSelectedPrayer] = useState<PrayerData | null>(null);
   const [isShaking, setIsShaking] = useState(false);
   const [points, setPoints] = useState(0);
   const [showCongrats, setShowCongrats] = useState(false);
   const [currentCongrats, setCurrentCongrats] = useState("");
   const [usedIndices, setUsedIndices] = useState<number[]>([]);
+  const [loading, setLoading] = useState(!!token);
+
+  // Sync progress with backend
+  const syncProgress = async (newPoints: number, newUsed: number[]) => {
+    if (!token) return;
+    try {
+      await fetch('/api/progress', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ points: newPoints, used_prayers: newUsed }),
+      });
+    } catch (err) {
+      console.error('Erro ao sincronizar progresso:', err);
+    }
+  };
+
+  // Load progress on mount or login
+  useEffect(() => {
+    if (!token) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchProgress = async () => {
+      try {
+        const response = await fetch('/api/progress', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setPoints(data.points);
+          setUsedIndices(data.used_prayers);
+        } else if (response.status === 401 || response.status === 403) {
+          handleLogout();
+        }
+      } catch (err) {
+        console.error('Erro ao carregar progresso:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProgress();
+  }, [token]);
+
+  const handleAuthSuccess = (newToken: string, userData: any) => {
+    localStorage.setItem(AUTH_TOKEN_KEY, newToken);
+    setToken(newToken);
+    setPoints(userData.points);
+    setUsedIndices(userData.used_prayers);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem(AUTH_TOKEN_KEY);
+    setToken(null);
+    setPoints(0);
+    setUsedIndices([]);
+  };
 
   // Helper to get consistent color/icon for a prayer
   const getPrayerStyle = (id: number) => {
@@ -51,18 +233,6 @@ export default function App() {
       icon: ICONS[id % ICONS.length]
     };
   };
-
-  // Load used prayers on mount
-  useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      try {
-        setUsedIndices(JSON.parse(saved));
-      } catch (e) {
-        console.error("Erro ao carregar orações usadas", e);
-      }
-    }
-  }, []);
 
   const drawPrayer = () => {
     if (points >= MAX_POINTS) {
@@ -79,7 +249,7 @@ export default function App() {
       if (availableIndices.length === 0) {
         availableIndices = PRAYERS_LIST.map((_, i) => i);
         setUsedIndices([]);
-        localStorage.removeItem(STORAGE_KEY);
+        syncProgress(points, []);
       }
 
       const randomIndex = availableIndices[Math.floor(Math.random() * availableIndices.length)];
@@ -89,7 +259,7 @@ export default function App() {
       
       const newUsed = [...usedIndices, randomIndex];
       setUsedIndices(newUsed);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newUsed));
+      syncProgress(points, newUsed);
       
       setIsShaking(false);
     }, 800);
@@ -103,13 +273,13 @@ export default function App() {
 
   const closePrayer = () => {
     if (selectedPrayer && points < MAX_POINTS) {
-      setPoints(prev => {
-        const next = prev + 1;
-        if (next === MAX_POINTS) {
-          setTimeout(handleShowCongrats, 500);
-        }
-        return next;
-      });
+      const nextPoints = points + 1;
+      setPoints(nextPoints);
+      syncProgress(nextPoints, usedIndices);
+      
+      if (nextPoints === MAX_POINTS) {
+        setTimeout(handleShowCongrats, 500);
+      }
     }
     setSelectedPrayer(null);
   };
@@ -117,7 +287,20 @@ export default function App() {
   const resetPoints = () => {
     setPoints(0);
     setShowCongrats(false);
+    syncProgress(0, usedIndices);
   };
+
+  if (!token) {
+    return <AuthScreen onAuthSuccess={handleAuthSuccess} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0f172a] flex items-center justify-center">
+        <RefreshCcw className="w-12 h-12 text-indigo-500 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0f172a] overflow-hidden relative font-sans text-slate-100">
@@ -144,6 +327,15 @@ export default function App() {
           />
         ))}
       </div>
+
+      {/* Logout Button */}
+      <button 
+        onClick={handleLogout}
+        className="absolute top-6 right-6 z-20 bg-white/10 hover:bg-white/20 p-3 rounded-full text-white transition-all flex items-center gap-2"
+        title="Sair"
+      >
+        <LogOut className="w-5 h-5" />
+      </button>
 
       {/* Main Content */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-screen p-6 max-w-2xl mx-auto text-center">
