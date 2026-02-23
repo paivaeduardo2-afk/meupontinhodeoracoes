@@ -98,6 +98,27 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     }
   };
 
+  const handleResetDB = async () => {
+    if (!confirm('Isso vai apagar TODAS as contas e o progresso. Tem certeza? ⚠️')) return;
+    
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/reset-dev', { method: 'POST' });
+      const data = await response.json();
+      if (response.ok) {
+        alert(data.message);
+        setError('');
+        setIsLogin(false); // Switch to register
+      } else {
+        throw new Error(data.error);
+      }
+    } catch (err: any) {
+      setError('Erro ao resetar: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-b from-sky-400 to-indigo-600 relative overflow-hidden">
       {/* Decorative Background Elements */}
@@ -220,20 +241,28 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           </motion.button>
         </form>
 
-        <div className="mt-8 text-center">
+        <div className="mt-8 text-center space-y-4">
           <button 
             type="button"
             onClick={() => {
               setIsLogin(!isLogin);
               setError('');
             }}
-            className="text-indigo-600 font-black hover:text-pink-500 transition-colors text-sm uppercase tracking-wider"
+            className="text-indigo-600 font-black hover:text-pink-500 transition-colors text-sm uppercase tracking-wider block w-full"
           >
             {isLogin ? (
               <span key="to-register">Ainda não tem conta? Clique aqui! 🌟</span>
             ) : (
               <span key="to-login">Já tem uma conta? Entre aqui! 🏠</span>
             )}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleResetDB}
+            className="text-gray-400 hover:text-red-500 transition-colors text-[10px] uppercase tracking-widest font-bold"
+          >
+            Esqueceu a senha? Resetar tudo (Dev) 🛠️
           </button>
         </div>
       </motion.div>

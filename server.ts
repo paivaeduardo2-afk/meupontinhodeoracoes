@@ -101,6 +101,18 @@ async function startServer() {
     }
   });
 
+  // Development only: Reset database
+  app.post("/api/auth/reset-dev", (req, res) => {
+    try {
+      db.exec("DELETE FROM users");
+      console.log("[API] Database reset by user request.");
+      res.json({ success: true, message: "Banco de dados resetado com sucesso! Agora você pode criar uma nova conta. ✨" });
+    } catch (error) {
+      console.error("[API] Reset error:", error);
+      res.status(500).json({ error: "Erro ao resetar banco de dados." });
+    }
+  });
+
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
