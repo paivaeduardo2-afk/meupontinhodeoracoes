@@ -49,6 +49,8 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     setLoading(true);
 
     const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    console.log(`[AUTH] Enviando requisição para: ${endpoint}`);
+    
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -56,11 +58,15 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
         body: JSON.stringify({ email, password }),
       });
       
+      console.log(`[AUTH] Resposta recebida: ${response.status} ${response.statusText}`);
+      
       let data;
+      const text = await response.text();
       try {
-        data = await response.json();
+        data = JSON.parse(text);
       } catch (parseError) {
-        throw new Error('Erro ao processar resposta do servidor. Tente novamente.');
+        console.error('[AUTH] Erro ao parsear JSON:', text);
+        throw new Error('O servidor retornou uma resposta inválida. Tente novamente.');
       }
 
       if (!response.ok) {
@@ -553,116 +559,109 @@ export default function App() {
         </div>
 
         {/* Prayer Card Modal */}
-        <AnimatePresence>
-          {selectedPrayer && (
+        {selectedPrayer && (
+          <motion.div
+            key="prayer-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+          >
             <motion.div
-              key="prayer-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md"
+              initial={{ scale: 0.5, y: 100, rotate: -10 }}
+              animate={{ scale: 1, y: 0, rotate: 0 }}
+              className={`${getPrayerStyle(selectedPrayer.id).color} w-full max-w-md p-8 rounded-3xl shadow-2xl relative border-4 border-white/30`}
             >
-              <motion.div
-                initial={{ scale: 0.5, y: 100, rotate: -10 }}
-                animate={{ scale: 1, y: 0, rotate: 0 }}
-                exit={{ scale: 0.5, opacity: 0, y: 100 }}
-                className={`${getPrayerStyle(selectedPrayer.id).color} w-full max-w-md p-8 rounded-3xl shadow-2xl relative border-4 border-white/30`}
+              <button
+                onClick={() => setSelectedPrayer(null)}
+                className="absolute -top-2 -right-2 bg-white text-slate-900 p-1 rounded-full shadow-lg hover:bg-slate-100 transition-colors"
               >
-                <button
-                  onClick={() => setSelectedPrayer(null)}
-                  className="absolute -top-2 -right-2 bg-white text-slate-900 p-1 rounded-full shadow-lg hover:bg-slate-100 transition-colors"
+                <X className="w-3 h-3" />
+              </button>
+
+              <div className="flex flex-col items-center text-center">
+                <motion.div
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ duration: 2, repeat: Infinity }}
+                  className="mb-6 bg-white/20 p-4 rounded-full"
                 >
-                  <X className="w-3 h-3" />
-                </button>
-
-                <div className="flex flex-col items-center text-center">
-                  <motion.div
-                    animate={{ scale: [1, 1.1, 1] }}
-                    transition={{ duration: 2, repeat: Infinity }}
-                    className="mb-6 bg-white/20 p-4 rounded-full"
-                  >
-                    {getPrayerStyle(selectedPrayer.id).icon}
-                  </motion.div>
-                  
-                  <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl border border-white/20 mb-6">
-                    <p className="text-sm font-bold text-white/60 uppercase tracking-widest mb-2">{selectedPrayer.theme}</p>
-                    <p className="text-xl md:text-2xl font-medium leading-relaxed text-white drop-shadow-md">
-                      “{selectedPrayer.text}”
-                    </p>
-                  </div>
-
-                  <motion.button 
-                    onClick={closePrayer}
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    animate={{ 
-                      boxShadow: ["0px 0px 0px rgba(255,255,255,0)", "0px 0px 20px rgba(255,255,255,0.5)", "0px 0px 0px rgba(255,255,255,0)"]
-                    }}
-                    transition={{
-                      boxShadow: { duration: 2, repeat: Infinity }
-                    }}
-                    className="bg-white text-indigo-900 px-10 py-4 rounded-full font-black text-lg shadow-xl flex items-center gap-2"
-                  >
-                    <CheckCircle2 className="w-6 h-6" />
-                    Amém!
-                  </motion.button>
+                  {getPrayerStyle(selectedPrayer.id).icon}
+                </motion.div>
+                
+                <div className="bg-white/10 backdrop-blur-sm p-6 rounded-2xl border border-white/20 mb-6">
+                  <p className="text-sm font-bold text-white/60 uppercase tracking-widest mb-2">{selectedPrayer.theme}</p>
+                  <p className="text-xl md:text-2xl font-medium leading-relaxed text-white drop-shadow-md">
+                    “{selectedPrayer.text}”
+                  </p>
                 </div>
-              </motion.div>
+
+                <motion.button 
+                  onClick={closePrayer}
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  animate={{ 
+                    boxShadow: ["0px 0px 0px rgba(255,255,255,0)", "0px 0px 20px rgba(255,255,255,0.5)", "0px 0px 0px rgba(255,255,255,0)"]
+                  }}
+                  transition={{
+                    boxShadow: { duration: 2, repeat: Infinity }
+                  }}
+                  className="bg-white text-indigo-900 px-10 py-4 rounded-full font-black text-lg shadow-xl flex items-center gap-2"
+                >
+                  <CheckCircle2 className="w-6 h-6" />
+                  Amém!
+                </motion.button>
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Congrats Modal */}
-        <AnimatePresence>
-          {showCongrats && (
+        {showCongrats && (
+          <motion.div
+            key="congrats-modal"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-indigo-950/90 backdrop-blur-lg"
+          >
             <motion.div
-              key="congrats-modal"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-indigo-950/90 backdrop-blur-lg"
+              initial={{ scale: 0.8, y: 50, opacity: 0 }}
+              animate={{ scale: 1, y: 0, opacity: 1 }}
+              className="bg-white text-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden"
             >
-              <motion.div
-                initial={{ scale: 0.8, y: 50, opacity: 0 }}
-                animate={{ scale: 1, y: 0, opacity: 1 }}
-                className="bg-white text-slate-900 p-8 rounded-3xl shadow-2xl w-full max-w-md relative overflow-hidden"
-              >
-                {/* Decorative background sparkles */}
-                <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500" />
+              {/* Decorative background sparkles */}
+              <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-yellow-400 via-pink-500 to-purple-500" />
+              
+              <div className="flex flex-col items-center text-center py-4">
+                <div className="bg-yellow-100 p-4 rounded-full mb-6">
+                  <Trophy className="w-16 h-16 text-yellow-600" />
+                </div>
                 
-                <div className="flex flex-col items-center text-center py-4">
-                  <div className="bg-yellow-100 p-4 rounded-full mb-6">
-                    <Trophy className="w-16 h-16 text-yellow-600" />
-                  </div>
-                  
-                  <h2 className="text-3xl font-bold text-indigo-900 mb-4">Parabéns! 🎉</h2>
-                  
-                  <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100 mb-8">
-                    <p className="text-xl text-indigo-900 font-medium leading-relaxed">
-                      {currentCongrats}
-                    </p>
-                  </div>
-
-                  <button
-                    onClick={resetPoints}
-                    className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
-                  >
-                    <RefreshCcw className="w-5 h-5" />
-                    Começar Novo Desafio
-                  </button>
+                <h2 className="text-3xl font-bold text-indigo-900 mb-4">Parabéns! 🎉</h2>
+                
+                <div className="bg-indigo-50 p-6 rounded-2xl border-2 border-indigo-100 mb-8">
+                  <p className="text-xl text-indigo-900 font-medium leading-relaxed">
+                    {currentCongrats}
+                  </p>
                 </div>
 
-                {/* Floating icons */}
-                <div className="absolute -bottom-4 -left-4 opacity-10">
-                  <Sparkles className="w-24 h-24 text-indigo-900" />
-                </div>
-                <div className="absolute -top-4 -right-4 opacity-10">
-                  <Heart className="w-20 h-20 text-pink-500" />
-                </div>
-              </motion.div>
+                <button
+                  onClick={resetPoints}
+                  className="w-full bg-indigo-600 text-white px-6 py-4 rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all flex items-center justify-center gap-2"
+                >
+                  <RefreshCcw className="w-5 h-5" />
+                  Começar Novo Desafio
+                </button>
+              </div>
+
+              {/* Floating icons */}
+              <div className="absolute -bottom-4 -left-4 opacity-10">
+                <Sparkles className="w-24 h-24 text-indigo-900" />
+              </div>
+              <div className="absolute -top-4 -right-4 opacity-10">
+                <Heart className="w-20 h-20 text-pink-500" />
+              </div>
             </motion.div>
-          )}
-        </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Footer Info */}
         <footer className="mt-auto pt-12 pb-6 text-slate-500 text-sm">

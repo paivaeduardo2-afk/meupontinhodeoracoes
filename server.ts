@@ -37,8 +37,10 @@ async function startServer() {
   // 1. Handle favicon to prevent 404s
   app.get("/favicon.ico", (req, res) => res.status(204).end());
 
-  // --- AUTH ROUTES ---
-  app.post("/api/auth/register", async (req, res) => {
+  // --- API ROUTES ---
+  const apiRouter = express.Router();
+
+  apiRouter.post("/auth/register", async (req, res) => {
     const { email, password } = req.body;
     console.log(`[AUTH] Tentativa de registro: ${email}`);
     if (!email || !password) {
@@ -61,7 +63,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  apiRouter.post("/auth/login", async (req, res) => {
     const { email, password } = req.body;
     console.log(`[AUTH] Tentativa de login: ${email}`);
     try {
@@ -91,7 +93,6 @@ async function startServer() {
     }
   });
 
-  // --- PROGRESS ROUTES ---
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers["authorization"];
     const token = authHeader && authHeader.split(" ")[1];
@@ -104,7 +105,7 @@ async function startServer() {
     });
   };
 
-  app.get("/api/progress", authenticateToken, (req: any, res) => {
+  apiRouter.get("/progress", authenticateToken, (req: any, res) => {
     const user: any = db.prepare("SELECT points, used_prayers FROM users WHERE id = ?").get(req.user.userId);
     res.json({ 
       points: user.points, 
@@ -112,7 +113,7 @@ async function startServer() {
     });
   });
 
-  app.post("/api/progress", authenticateToken, (req: any, res) => {
+  apiRouter.post("/progress", authenticateToken, (req: any, res) => {
     const { points, used_prayers } = req.body;
     try {
       db.prepare("UPDATE users SET points = ?, used_prayers = ? WHERE id = ?")
@@ -121,6 +122,13 @@ async function startServer() {
     } catch (error) {
       res.status(500).json({ error: "Erro ao salvar progresso" });
     }
+  });
+
+  app.use("/api", apiRouter);
+
+  // Catch-all for /api to prevent returning HTML on 404s
+  app.all("/api/*", (req, res) => {
+    res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
   });
 
   // 2. Health check
