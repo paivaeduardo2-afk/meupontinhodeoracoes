@@ -25,10 +25,11 @@ async function startServer() {
   app.get("/favicon.ico", (req, res) => res.status(204).end());
 
   // --- AUTH ROUTES ---
+  const authRouter = express.Router();
 
-  app.post("/api/auth/register", async (req, res) => {
+  authRouter.post("/register", async (req, res) => {
     const { email, password } = req.body;
-    console.log(`Tentativa de registro: ${email}`);
+    console.log(`[AUTH] Tentativa de registro: ${email}`);
     if (!email || !password) {
       return res.status(400).json({ error: "Email e senha são obrigatórios!" });
     }
@@ -37,10 +38,10 @@ async function startServer() {
       const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
       const result = stmt.run(email, hashedPassword);
       const token = jwt.sign({ userId: Number(result.lastInsertRowid) }, JWT_SECRET);
-      console.log(`Registro bem-sucedido: ${email}`);
+      console.log(`[AUTH] Registro bem-sucedido: ${email}`);
       res.json({ token, user: { email, points: 0, used_prayers: [] } });
     } catch (error: any) {
-      console.error("Erro no registro:", error);
+      console.error("[AUTH] Erro no registro:", error);
       if (error.code === "SQLITE_CONSTRAINT") {
         res.status(400).json({ error: "Este email já tem uma conta! Tente entrar. 🏠" });
       } else {
@@ -49,22 +50,22 @@ async function startServer() {
     }
   });
 
-  app.post("/api/auth/login", async (req, res) => {
+  authRouter.post("/login", async (req, res) => {
     const { email, password } = req.body;
-    console.log(`Tentativa de login: ${email}`);
+    console.log(`[AUTH] Tentativa de login: ${email}`);
     try {
       const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
       if (!user) {
-        console.log(`Usuário não encontrado: ${email}`);
+        console.log(`[AUTH] Usuário não encontrado: ${email}`);
         return res.status(404).json({ error: "Conta não encontrada. Você precisa se cadastrar primeiro! ✨" });
       }
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        console.log(`Senha incorreta para: ${email}`);
+        console.log(`[AUTH] Senha incorreta para: ${email}`);
         return res.status(401).json({ error: "Senha incorreta. Tente de novo! 🔑" });
       }
       const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-      console.log(`Login bem-sucedido: ${email}`);
+      console.log(`[AUTH] Login bem-sucedido: ${email}`);
       res.json({ 
         token, 
         user: { 
@@ -74,12 +75,15 @@ async function startServer() {
         } 
       });
     } catch (error) {
-      console.error("Erro no login:", error);
+      console.error("[AUTH] Erro no login:", error);
       res.status(500).json({ error: "Erro interno no servidor. Tente novamente." });
     }
   });
 
+  app.use("/api/auth", authRouter);
+
   // --- PROGRESS ROUTES ---
+  const progressRouter = express.Router();
 
   const authenticateToken = (req: any, res: any, next: any) => {
     const authHeader = req.headers["authorization"];
@@ -93,7 +97,9 @@ async function startServer() {
     });
   };
 
-  app.get("/api/progress", authenticateToken, (req: any, res) => {
+  progressRouter.use(authenticateToken);
+
+  progressRouter.get("/", (req: any, res) => {
     const user: any = db.prepare("SELECT points, used_prayers FROM users WHERE id = ?").get(req.user.userId);
     res.json({ 
       points: user.points, 
@@ -101,7 +107,7 @@ async function startServer() {
     });
   });
 
-  app.post("/api/progress", authenticateToken, (req: any, res) => {
+  progressRouter.post("/", (req: any, res) => {
     const { points, used_prayers } = req.body;
     try {
       db.prepare("UPDATE users SET points = ?, used_prayers = ? WHERE id = ?")
@@ -111,6 +117,8 @@ async function startServer() {
       res.status(500).json({ error: "Erro ao salvar progresso" });
     }
   });
+
+  app.use("/api/progress", progressRouter);
 
   // 2. Health check
   app.get("/api/health", (req, res) => res.json({ status: "ok" }));
