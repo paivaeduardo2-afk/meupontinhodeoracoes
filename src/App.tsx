@@ -24,6 +24,20 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+
+  useEffect(() => {
+    const checkServer = async () => {
+      try {
+        const res = await fetch(`${window.location.origin}/api/health`);
+        if (res.ok) setServerStatus('online');
+        else setServerStatus('offline');
+      } catch (e) {
+        setServerStatus('offline');
+      }
+    };
+    checkServer();
+  }, []);
 
   // Stabilize background elements to prevent hydration/DOM issues
   const bgElements = React.useMemo(() => {
@@ -47,8 +61,10 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
     }
 
     setLoading(true);
+    setError('');
 
-    const endpoint = isLogin ? '/api/auth/login' : '/api/auth/register';
+    const baseUrl = window.location.origin;
+    const endpoint = `${baseUrl}${isLogin ? '/api/auth/login' : '/api/auth/register'}`;
     console.log(`[AUTH] Enviando requisição para: ${endpoint}`);
     
     try {
@@ -137,6 +153,12 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
               <span key="register-sub">Crie sua conta para guardar seus pontos</span>
             )}
           </p>
+          <div className="mt-2 flex items-center justify-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${serverStatus === 'online' ? 'bg-green-500' : serverStatus === 'offline' ? 'bg-red-500' : 'bg-yellow-500 animate-pulse'}`} />
+            <span className="text-[10px] uppercase tracking-widest font-bold text-slate-400">
+              Servidor: {serverStatus === 'online' ? 'Conectado' : serverStatus === 'offline' ? 'Desconectado' : 'Verificando...'}
+            </span>
+          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5">

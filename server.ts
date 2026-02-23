@@ -8,6 +8,16 @@ import bcrypt from "bcryptjs";
 import db from "./db";
 import dotenv from "dotenv";
 
+console.log("[SERVER] Starting initialization...");
+
+process.on('uncaughtException', (err) => {
+  console.error('[SERVER] UNCAUGHT EXCEPTION:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[SERVER] UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,30 +29,19 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  app.use(express.json());
-
-  // Request logger
-  app.use((req, res, next) => {
-    const timestamp = new Date().toISOString();
-    console.log(`[SERVER] ${timestamp} - ${req.method} ${req.url}`);
-    if (req.method === 'POST' || req.method === 'PUT') {
-      // Log body but hide password
-      const safeBody = req.body ? { ...req.body } : {};
-      if (safeBody.password) safeBody.password = '***';
-      console.log(`[SERVER] Body:`, JSON.stringify(safeBody));
-    }
-    next();
+  // --- API ROUTES FIRST ---
+  // Health check (no middleware needed)
+  app.get("/api/health", (req, res) => {
+    console.log(`[API] Health check hit at ${new Date().toISOString()}`);
+    res.json({ status: "ok", time: new Date().toISOString(), env: process.env.NODE_ENV });
   });
 
-  // 1. Handle favicon to prevent 404s
-  app.get("/favicon.ico", (req, res) => res.status(204).end());
+  // Body parser for other API routes
+  app.use(express.json());
 
-  // --- API ROUTES ---
-  const apiRouter = express.Router();
-
-  apiRouter.post("/auth/register", async (req, res) => {
+  app.post("/api/auth/register", async (req, res) => {
     const { email, password } = req.body;
-    console.log(`[AUTH] Tentativa de registro: ${email}`);
+    console.log(`[API] Register attempt: ${email}`);
     if (!email || !password) {
       return res.status(400).json({ error: "Email e senha são obrigatórios!" });
     }
@@ -51,34 +50,32 @@ async function startServer() {
       const stmt = db.prepare("INSERT INTO users (email, password) VALUES (?, ?)");
       const result = stmt.run(email, hashedPassword);
       const token = jwt.sign({ userId: Number(result.lastInsertRowid) }, JWT_SECRET);
-      console.log(`[AUTH] Registro bem-sucedido: ${email}`);
+      console.log(`[API] Register success: ${email}`);
       res.json({ token, user: { email, points: 0, used_prayers: [] } });
     } catch (error: any) {
-      console.error("[AUTH] Erro no registro:", error);
+      console.error("[API] Register error:", error);
       if (error.code === "SQLITE_CONSTRAINT") {
         res.status(400).json({ error: "Este email já tem uma conta! Tente entrar. 🏠" });
       } else {
-        res.status(500).json({ error: "Ops! Erro ao criar conta no servidor. Tente de novo. 🛠️" });
+        res.status(500).json({ error: "Erro ao criar conta. Tente novamente." });
       }
     }
   });
 
-  apiRouter.post("/auth/login", async (req, res) => {
+  app.post("/api/auth/login", async (req, res) => {
     const { email, password } = req.body;
-    console.log(`[AUTH] Tentativa de login: ${email}`);
+    console.log(`[API] Login attempt: ${email}`);
     try {
       const user: any = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
       if (!user) {
-        console.log(`[AUTH] Usuário não encontrado: ${email}`);
-        return res.status(404).json({ error: "Conta não encontrada. Você precisa se cadastrar primeiro! ✨" });
+        return res.status(404).json({ error: "Conta não encontrada. Cadastre-se primeiro! ✨" });
       }
       const isPasswordValid = await bcrypt.compare(password, user.password);
       if (!isPasswordValid) {
-        console.log(`[AUTH] Senha incorreta para: ${email}`);
         return res.status(401).json({ error: "Senha incorreta. Tente de novo! 🔑" });
       }
       const token = jwt.sign({ userId: user.id }, JWT_SECRET);
-      console.log(`[AUTH] Login bem-sucedido: ${email}`);
+      console.log(`[API] Login success: ${email}`);
       res.json({ 
         token, 
         user: { 
@@ -88,8 +85,8 @@ async function startServer() {
         } 
       });
     } catch (error) {
-      console.error("[AUTH] Erro no login:", error);
-      res.status(500).json({ error: "Erro interno no servidor. Tente novamente." });
+      console.error("[API] Login error:", error);
+      res.status(500).json({ error: "Erro interno no servidor." });
     }
   });
 
@@ -105,15 +102,19 @@ async function startServer() {
     });
   };
 
-  apiRouter.get("/progress", authenticateToken, (req: any, res) => {
-    const user: any = db.prepare("SELECT points, used_prayers FROM users WHERE id = ?").get(req.user.userId);
-    res.json({ 
-      points: user.points, 
-      used_prayers: JSON.parse(user.used_prayers) 
-    });
+  app.get("/api/progress", authenticateToken, (req: any, res) => {
+    try {
+      const user: any = db.prepare("SELECT points, used_prayers FROM users WHERE id = ?").get(req.user.userId);
+      res.json({ 
+        points: user.points, 
+        used_prayers: JSON.parse(user.used_prayers) 
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Erro ao buscar progresso" });
+    }
   });
 
-  apiRouter.post("/progress", authenticateToken, (req: any, res) => {
+  app.post("/api/progress", authenticateToken, (req: any, res) => {
     const { points, used_prayers } = req.body;
     try {
       db.prepare("UPDATE users SET points = ?, used_prayers = ? WHERE id = ?")
@@ -124,15 +125,21 @@ async function startServer() {
     }
   });
 
-  app.use("/api", apiRouter);
-
   // Catch-all for /api to prevent returning HTML on 404s
   app.all("/api/*", (req, res) => {
-    res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
+    console.log(`[API] 404 Not Found: ${req.method} ${req.url}`);
+    res.status(404).json({ error: `Route ${req.method} ${req.url} not found` });
   });
 
-  // 2. Health check
-  app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+  // Request logger for everything else
+  app.use((req, res, next) => {
+    const timestamp = new Date().toISOString();
+    console.log(`[SERVER] ${timestamp} - ${req.method} ${req.url}`);
+    next();
+  });
+
+  // 1. Handle favicon to prevent 404s
+  app.get("/favicon.ico", (req, res) => res.status(204).end());
 
   // Global error handler
   app.use((err: any, req: any, res: any, next: any) => {
