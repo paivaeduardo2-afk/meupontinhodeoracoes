@@ -26,6 +26,8 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [serverStatus, setServerStatus] = useState<'checking' | 'online' | 'offline'>('checking');
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState('');
 
   useEffect(() => {
     const checkServer = async () => {
@@ -99,16 +101,16 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
   };
 
   const handleResetDB = async () => {
-    if (!confirm('Isso vai apagar TODAS as contas e o progresso. Tem certeza? ⚠️')) return;
-    
     setLoading(true);
+    setResetSuccess('');
     try {
       const response = await fetch('/api/auth/reset-dev', { method: 'POST' });
       const data = await response.json();
       if (response.ok) {
-        alert(data.message);
+        setResetSuccess(data.message);
         setError('');
         setIsLogin(false); // Switch to register
+        setShowResetConfirm(false);
       } else {
         throw new Error(data.error);
       }
@@ -182,89 +184,141 @@ const AuthScreen: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <div>
-            <label className="block text-xs font-black text-indigo-400 mb-2 uppercase tracking-widest ml-1">Email do Papai ou Mamãe</label>
-            <div className="relative">
-              <input 
-                type="email" 
-                required 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full px-6 py-4 rounded-2xl border-4 border-slate-100 focus:border-sky-400 outline-none transition-all text-lg font-bold text-slate-700 placeholder:text-slate-300"
-                placeholder="exemplo@email.com"
-              />
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-black text-indigo-400 mb-2 uppercase tracking-widest ml-1">Senha Secreta</label>
-            <input 
-              type="password" 
-              required 
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-6 py-4 rounded-2xl border-4 border-slate-100 focus:border-sky-400 outline-none transition-all text-lg font-bold text-slate-700 placeholder:text-slate-300"
-              placeholder="••••••••"
-            />
-          </div>
-
+        <AnimatePresence mode="wait">
           {error && (
             <motion.div 
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="bg-red-50 text-red-500 p-3 rounded-xl text-sm font-bold text-center border-2 border-red-100"
+              key="auth-error"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="mb-6 p-4 bg-red-50 border-2 border-red-200 text-red-700 rounded-2xl text-sm font-bold flex items-center gap-3"
             >
+              <X className="w-5 h-5 flex-shrink-0" />
               {error}
             </motion.div>
           )}
+          {resetSuccess && (
+            <motion.div 
+              key="reset-success"
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="mb-6 p-4 bg-green-50 border-2 border-green-200 text-green-700 rounded-2xl text-sm font-bold flex items-center gap-3"
+            >
+              <CheckCircle2 className="w-5 h-5 flex-shrink-0" />
+              {resetSuccess}
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-          <motion.button 
-            type="submit"
-            disabled={loading}
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-5 rounded-2xl font-black text-xl shadow-[0_10px_20px_rgba(236,72,153,0.3)] hover:shadow-[0_15px_25px_rgba(236,72,153,0.4)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-b-4 border-purple-800"
+        {showResetConfirm ? (
+          <motion.div
+            key="reset-confirm-ui"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="space-y-6 text-center"
           >
-            {loading ? (
-              <span key="loading-spinner" className="flex items-center justify-center">
-                <RefreshCcw className="w-6 h-6 animate-spin" />
-              </span>
-            ) : isLogin ? (
-              <span key="login-text" className="flex items-center justify-center gap-3">
-                <LogIn className="w-6 h-6" /> ENTRAR
-              </span>
-            ) : (
-              <span key="register-text" className="flex items-center justify-center gap-3">
-                <UserPlus className="w-6 h-6" /> CADASTRAR
-              </span>
-            )}
-          </motion.button>
-        </form>
+            <div className="p-6 bg-red-50 rounded-2xl border-2 border-red-100">
+              <p className="text-red-800 font-black text-lg mb-2">TEM CERTEZA? ⚠️</p>
+              <p className="text-red-600 text-sm font-bold">
+                Isso vai apagar TODAS as contas e o progresso de todo mundo. 
+                Não tem como voltar atrás!
+              </p>
+            </div>
+            <div className="flex gap-4">
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-4 px-6 bg-gray-100 text-gray-600 rounded-2xl font-black hover:bg-gray-200 transition-all"
+              >
+                CANCELAR
+              </button>
+              <button
+                onClick={handleResetDB}
+                disabled={loading}
+                className="flex-1 py-4 px-6 bg-red-500 text-white rounded-2xl font-black hover:bg-red-600 transition-all shadow-lg shadow-red-200 disabled:opacity-50"
+              >
+                {loading ? 'RESETANDO...' : 'SIM, APAGAR TUDO'}
+              </button>
+            </div>
+          </motion.div>
+        ) : (
+          <>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              <div>
+                <label className="block text-xs font-black text-indigo-400 mb-2 uppercase tracking-widest ml-1">Email do Papai ou Mamãe</label>
+                <div className="relative">
+                  <input 
+                    type="email" 
+                    required 
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full px-6 py-4 rounded-2xl border-4 border-slate-100 focus:border-sky-400 outline-none transition-all text-lg font-bold text-slate-700 placeholder:text-slate-300"
+                    placeholder="exemplo@email.com"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-black text-indigo-400 mb-2 uppercase tracking-widest ml-1">Senha Secreta</label>
+                <input 
+                  type="password" 
+                  required 
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full px-6 py-4 rounded-2xl border-4 border-slate-100 focus:border-sky-400 outline-none transition-all text-lg font-bold text-slate-700 placeholder:text-slate-300"
+                  placeholder="••••••••"
+                />
+              </div>
 
-        <div className="mt-8 text-center space-y-4">
-          <button 
-            type="button"
-            onClick={() => {
-              setIsLogin(!isLogin);
-              setError('');
-            }}
-            className="text-indigo-600 font-black hover:text-pink-500 transition-colors text-sm uppercase tracking-wider block w-full"
-          >
-            {isLogin ? (
-              <span key="to-register">Ainda não tem conta? Clique aqui! 🌟</span>
-            ) : (
-              <span key="to-login">Já tem uma conta? Entre aqui! 🏠</span>
-            )}
-          </button>
+              <motion.button 
+                type="submit"
+                disabled={loading}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full bg-gradient-to-r from-pink-500 to-purple-600 text-white py-5 rounded-2xl font-black text-xl shadow-[0_10px_20px_rgba(236,72,153,0.3)] hover:shadow-[0_15px_25px_rgba(236,72,153,0.4)] transition-all flex items-center justify-center gap-3 disabled:opacity-50 border-b-4 border-purple-800"
+              >
+                {loading ? (
+                  <span key="loading-spinner" className="flex items-center justify-center">
+                    <RefreshCcw className="w-6 h-6 animate-spin" />
+                  </span>
+                ) : isLogin ? (
+                  <span key="login-text" className="flex items-center justify-center gap-3">
+                    <LogIn className="w-6 h-6" /> ENTRAR
+                  </span>
+                ) : (
+                  <span key="register-text" className="flex items-center justify-center gap-3">
+                    <UserPlus className="w-6 h-6" /> CADASTRAR
+                  </span>
+                )}
+              </motion.button>
+            </form>
 
-          <button
-            type="button"
-            onClick={handleResetDB}
-            className="text-gray-400 hover:text-red-500 transition-colors text-[10px] uppercase tracking-widest font-bold"
-          >
-            Esqueceu a senha? Resetar tudo (Dev) 🛠️
-          </button>
-        </div>
+            <div className="mt-8 text-center space-y-4">
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setError('');
+                  setResetSuccess('');
+                }}
+                className="text-indigo-600 font-black hover:text-pink-500 transition-colors text-sm uppercase tracking-wider block w-full"
+              >
+                {isLogin ? (
+                  <span key="to-register">Ainda não tem conta? Clique aqui! 🌟</span>
+                ) : (
+                  <span key="to-login">Já tem uma conta? Entre aqui! 🏠</span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowResetConfirm(true)}
+                className="text-gray-400 hover:text-red-500 transition-colors text-[10px] uppercase tracking-widest font-bold"
+              >
+                Esqueceu a senha? Resetar tudo (Dev) 🛠️
+              </button>
+            </div>
+          </>
+        )}
       </motion.div>
     </div>
   );

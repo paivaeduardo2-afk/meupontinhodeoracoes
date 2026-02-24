@@ -104,7 +104,13 @@ async function startServer() {
   // Development only: Reset database
   app.post("/api/auth/reset-dev", (req, res) => {
     try {
-      db.exec("DELETE FROM users");
+      db.transaction(() => {
+        db.prepare("DELETE FROM users").run();
+        // Try to reset sequence, ignore if it doesn't exist (e.g. fresh DB)
+        try {
+          db.prepare("DELETE FROM sqlite_sequence WHERE name='users'").run();
+        } catch (e) {}
+      })();
       console.log("[API] Database reset by user request.");
       res.json({ success: true, message: "Banco de dados resetado com sucesso! Agora você pode criar uma nova conta. ✨" });
     } catch (error) {
